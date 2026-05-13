@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: db_ms3
+      POSTGRES_USER: oficina
+      POSTGRES_PASSWORD: oficina
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oficina -d db_ms3"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  localstack:
+    image: localstack/localstack:3
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: sqs,sns
+      AWS_DEFAULT_REGION: us-east-1
+      DEBUG: "0"
+    volumes:
+      - localstack-data:/var/lib/localstack
+      - ./scripts/init-localstack.sh:/etc/localstack/init/ready.d/init-localstack.sh:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  ms3:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      SERVER_PORT: "8083"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: oficina
+      DB_PASSWORD: oficina
+      DB_NAME: db_ms3
+      DB_SSLMODE: disable
+      JWT_SECRET_KEY: local-dev-secret
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_ENDPOINT_URL: http://localstack:4566
+      # Filas resolvidas via init script; SQS_AUTO_CREATE_QUEUES como fallback de segurança
+      SQS_AUTO_CREATE_QUEUES: "true"
+      SNS_INVENTORY_LOW_ALERT_ARN: arn:aws:sns:us-east-1:000000000000:inventory-low-alert
+
+volumes:
+  postgres-data:
+  localstack-data:
