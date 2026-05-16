@@ -121,6 +121,9 @@ jobs:
           sns_inventory_low_alert_arn: ${{ secrets.SNS_INVENTORY_LOW_ALERT_ARN }}
           db_password: ${{ secrets.DB_PASSWORD }}
           jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_session_token: ${{ secrets.AWS_SESSION_TOKEN }}
           ghcr_pat: ${{ secrets.GHCR_PAT }}
           github_actor: ${{ github.actor }}
           dd_api_key: ${{ secrets.DD_API_KEY }}
