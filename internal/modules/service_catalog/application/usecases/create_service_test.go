@@ -82,6 +82,7 @@ func TestCreateServiceUseCase_Execute(t *testing.T) {
 			validateOutput: func(t *testing.T, output *CreateServiceOutput) {
 				if output == nil {
 					t.Fatal("expected non-nil output")
+					return
 				}
 				if output.ID == "" {
 					t.Error("expected non-empty ID")
