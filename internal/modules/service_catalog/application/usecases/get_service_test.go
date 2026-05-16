@@ -42,6 +42,7 @@ func TestGetServiceByIDUseCase_Execute(t *testing.T) {
 			validateOutput: func(t *testing.T, output *GetServiceByIDOutput) {
 				if output == nil {
 					t.Fatal("expected non-nil output")
+					return
 				}
 				if output.ID != "550e8400-e29b-41d4-a716-446655440000" {
 					t.Errorf("ID: got %s, want %s", output.ID, "550e8400-e29b-41d4-a716-446655440000")

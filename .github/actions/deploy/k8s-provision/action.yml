@@ -114,6 +114,11 @@ runs:
           SNS_INVENTORY_LOW_ALERT_ARN: "${{ inputs.sns_inventory_low_alert_arn }}"
         EOF
         echo "::notice::ConfigMap $APP_NAME-config created"
+        if [ -z "${{ inputs.sns_inventory_low_alert_arn }}" ]; then
+          echo "::notice::SNS inventory-low-alert desabilitado — configure SNS_INVENTORY_LOW_ALERT_ARN para ativar alertas de estoque baixo"
+        else
+          echo "::notice::SNS inventory-low-alert ativo"
+        fi
 
     - name: Create Secrets
       shell: bash

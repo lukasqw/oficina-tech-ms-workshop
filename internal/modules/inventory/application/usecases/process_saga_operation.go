@@ -112,16 +112,16 @@ func (uc *ProcessSagaOperationUseCase) Execute(ctx context.Context, input Proces
 func (uc *ProcessSagaOperationUseCase) apply(ctx context.Context, operation saga_operation.Operation, item ProcessSagaItemInput) error {
 	switch operation {
 	case saga_operation.OperationReserve:
-		_, err := uc.reserveStock.Execute(ctx, ReserveStockInput{ProductID: item.ProductID, Quantity: item.Quantity})
+		_, err := uc.reserveStock.Execute(ctx, ReserveStockInput(item))
 		return err
 	case saga_operation.OperationReservedDecrease:
-		_, err := uc.reservedDecreaseStock.Execute(ctx, ReservedDecreaseStockInput{ProductID: item.ProductID, Quantity: item.Quantity})
+		_, err := uc.reservedDecreaseStock.Execute(ctx, ReservedDecreaseStockInput(item))
 		return err
 	case saga_operation.OperationCancelReserved:
-		_, err := uc.cancelReservedStock.Execute(ctx, CancelReservedStockInput{ProductID: item.ProductID, Quantity: item.Quantity})
+		_, err := uc.cancelReservedStock.Execute(ctx, CancelReservedStockInput(item))
 		return err
 	case saga_operation.OperationCancelConfirmed:
-		_, err := uc.cancelConfirmedStock.Execute(ctx, CancelConfirmedStockInput{ProductID: item.ProductID, Quantity: item.Quantity})
+		_, err := uc.cancelConfirmedStock.Execute(ctx, CancelConfirmedStockInput(item))
 		return err
 	default:
 		return saga_operation.ErrInvalidOperation

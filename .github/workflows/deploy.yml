@@ -1,4 +1,5 @@
-name: Deploy
+﻿name: Deploy
+run-name: 🚀 ${{ github.event.pull_request.title || format('Deploy {0}', github.ref_name) }}
 
 on:
   pull_request:
@@ -25,11 +26,11 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  # Repository Variables — configure in Settings → Secrets and Variables → Variables
+  # Repository Variables â€” configure in Settings â†’ Secrets and Variables â†’ Variables
   # Required: APP_NAME, K8S_NAMESPACE, AWS_REGION, INFRA_TFSTATE_S3_PATH, DB_TFSTATE_S3_PATH
   # Optional: GO_VERSION (default: 1.25), GO_MAIN_PATH (default: cmd/api/main.go),
   #           SERVER_PORT (default: 8083), HEALTH_ENDPOINT (default: /health)
-  K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+  K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'app-oficina-tech' }}
   AWS_REGION: ${{ vars.AWS_REGION }}
 
 jobs:
@@ -108,6 +109,8 @@ jobs:
           [ -z "${{ secrets.GHCR_PAT }}" ]              && MISSING+=("GHCR_PAT")
           [ -z "${{ secrets.DD_API_KEY }}" ]             && MISSING+=("DD_API_KEY")
           [ -z "${{ secrets.DD_APP_KEY }}" ]             && MISSING+=("DD_APP_KEY")
+          [ -z "${{ vars.INFRA_TFSTATE_S3_PATH }}" ] && MISSING+=("INFRA_TFSTATE_S3_PATH")
+          [ -z "${{ vars.DB_TFSTATE_S3_PATH }}" ]    && MISSING+=("DB_TFSTATE_S3_PATH")
           if [ ${#MISSING[@]} -gt 0 ]; then
             echo "::error::Required secrets missing: ${MISSING[*]}"
             exit 1
@@ -137,17 +140,17 @@ jobs:
           rds_dbname: ${{ steps.infra.outputs.rds_dbname }}
           rds_user: ${{ steps.infra.outputs.rds_user }}
           aws_region: ${{ env.AWS_REGION }}
-          sqs_inventory_op_requested_url: ${{ vars.SQS_INVENTORY_OP_REQUESTED_URL }}
-          sqs_inventory_op_succeeded_url: ${{ vars.SQS_INVENTORY_OP_SUCCEEDED_URL }}
-          sqs_inventory_op_failed_url: ${{ vars.SQS_INVENTORY_OP_FAILED_URL }}
-          sns_inventory_low_alert_arn: ${{ vars.SNS_INVENTORY_LOW_ALERT_ARN }}
+          sqs_inventory_op_requested_url: ${{ steps.infra.outputs.sqs_inventory_op_requested_url }}
+          sqs_inventory_op_succeeded_url: ${{ steps.infra.outputs.sqs_inventory_op_succeeded_url }}
+          sqs_inventory_op_failed_url: ${{ steps.infra.outputs.sqs_inventory_op_failed_url }}
+          sns_inventory_low_alert_arn: ${{ secrets.SNS_INVENTORY_LOW_ALERT_ARN }}
           db_password: ${{ secrets.DB_PASSWORD }}
           jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
           ghcr_pat: ${{ secrets.GHCR_PAT }}
           github_actor: ${{ github.actor }}
           dd_api_key: ${{ secrets.DD_API_KEY }}
           dd_app_key: ${{ secrets.DD_APP_KEY }}
-          dd_site: ${{ secrets.DD_SITE }}
+          dd_site: ${{ vars.DD_SITE }}
 
       - name: Deploy Application
         uses: ./.github/actions/deploy/k8s-application
@@ -161,8 +164,8 @@ jobs:
           server_port: ${{ vars.SERVER_PORT || '8083' }}
           health_endpoint: ${{ vars.HEALTH_ENDPOINT || '/health' }}
 
-      # Tag criada apenas após health check confirmado — garante que a tag
-      # representa exatamente o que está rodando em produção.
+      # Tag criada apenas apÃ³s health check confirmado â€” garante que a tag
+      # representa exatamente o que estÃ¡ rodando em produÃ§Ã£o.
       - name: Finalize Release Tag
         if: github.event_name != 'workflow_dispatch'
         uses: ./.github/actions/release/finalize-tag
@@ -241,4 +244,4 @@ jobs:
         uses: ./.github/actions/quality/sonarqube
         with:
           sonar_token: ${{ secrets.SONAR_TOKEN }}
-          sonar_host_url: ${{ secrets.SONAR_HOST_URL }}
+          sonar_host_url: ${{ vars.SONAR_HOST_URL }}

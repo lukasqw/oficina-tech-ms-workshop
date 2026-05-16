@@ -46,6 +46,7 @@ func TestGetAllServicesUseCase_Execute(t *testing.T) {
 			validateOutput: func(t *testing.T, output *GetAllServicesOutput) {
 				if output == nil {
 					t.Fatal("expected non-nil output")
+					return
 				}
 
 				if len(output.Services) != 3 {
@@ -127,6 +128,7 @@ func TestGetAllServicesUseCase_Execute(t *testing.T) {
 			validateOutput: func(t *testing.T, output *GetAllServicesOutput) {
 				if output == nil {
 					t.Fatal("expected non-nil output")
+					return
 				}
 
 				if output.Services == nil {
