@@ -271,6 +271,7 @@ func TestStringPtr(t *testing.T) {
 
 			if result == nil {
 				t.Fatal("Expected non-nil pointer")
+				return
 			}
 
 			if *result != tt.input {
