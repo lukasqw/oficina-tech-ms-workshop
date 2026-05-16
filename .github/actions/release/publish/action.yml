@@ -45,7 +45,7 @@ runs:
         CURRENT="${{ inputs.version }}"
         # sed -n '1p' consumes the full pipe without triggering SIGPIPE (unlike head -1)
         PREV_TAG=$(git tag --sort=-v:refname 2>/dev/null \
-          | grep -v "^${CURRENT}$" | sed -n '1p')
+          | { grep -v "^${CURRENT}$" || true; } | sed -n '1p')
         if [ -z "$PREV_TAG" ]; then
           CHANGELOG=$(git log --pretty=format:"- %s (%h)" -20)
         else
