@@ -59,6 +59,17 @@ inputs:
   jwt_secret_key:
     description: 'JWT signing secret (shared across all MSs)'
     required: true
+  # AWS credentials — required for SQS/SNS access from pods
+  aws_access_key_id:
+    description: 'AWS Access Key ID'
+    required: true
+  aws_secret_access_key:
+    description: 'AWS Secret Access Key'
+    required: true
+  aws_session_token:
+    description: 'AWS Session Token (temporary credentials)'
+    required: false
+    default: ''
   # Registry pull secret
   ghcr_pat:
     description: 'GitHub Container Registry personal access token'
@@ -136,6 +147,9 @@ runs:
         kubectl create secret generic "$APP_NAME-secret" \
           --from-literal=DB_PASSWORD=${{ inputs.db_password }} \
           --from-literal=JWT_SECRET_KEY=${{ inputs.jwt_secret_key }} \
+          --from-literal=AWS_ACCESS_KEY_ID=${{ inputs.aws_access_key_id }} \
+          --from-literal=AWS_SECRET_ACCESS_KEY=${{ inputs.aws_secret_access_key }} \
+          --from-literal=AWS_SESSION_TOKEN=${{ inputs.aws_session_token }} \
           -n ${{ inputs.namespace }} \
           --dry-run=client -o yaml | kubectl apply -f -
 
