@@ -119,9 +119,9 @@ runs:
           APP_ENV: "production"
           APP_VERSION: "${{ inputs.version }}"
           AWS_REGION: "${{ inputs.aws_region }}"
-          SQS_INVENTORY_OP_REQUESTED_URL: "${{ inputs.sqs_inventory_op_requested_url }}"
-          SQS_INVENTORY_OP_SUCCEEDED_URL: "${{ inputs.sqs_inventory_op_succeeded_url }}"
-          SQS_INVENTORY_OP_FAILED_URL: "${{ inputs.sqs_inventory_op_failed_url }}"
+          ORDER_INVENTORY_OP_REQUESTED_QUEUE_URL: "${{ inputs.sqs_inventory_op_requested_url }}"
+          ORDER_INVENTORY_OP_SUCCEEDED_QUEUE_URL: "${{ inputs.sqs_inventory_op_succeeded_url }}"
+          ORDER_INVENTORY_OP_FAILED_QUEUE_URL: "${{ inputs.sqs_inventory_op_failed_url }}"
           SNS_INVENTORY_LOW_ALERT_ARN: "${{ inputs.sns_inventory_low_alert_arn }}"
         EOF
         echo "::notice::ConfigMap $APP_NAME-config created"
