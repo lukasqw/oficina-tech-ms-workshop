@@ -1,71 +1,70 @@
-name: 'Deploy — Provision Kubernetes Resources'
+name: 'Deploy — Provision Kubernetes Resources (ms-workshop)'
 description: >
-  Creates the namespace, ConfigMap, application secrets and deploys the
-  Datadog Agent via Helm. All operations are idempotent — safe to run on
-  every deploy.
+  Creates namespace, ConfigMap, Secrets and Datadog Agent for ms-workshop.
+  All operations are idempotent — safe to run on every deploy.
 
 inputs:
   app_name:
-    description: 'Application name — used to derive Kubernetes resource names (e.g. oficina-tech)'
+    description: 'Application name'
     required: true
   namespace:
     description: 'Kubernetes namespace'
     required: true
   version:
-    description: 'Application version (e.g. v1.2.0) — written to APP_VERSION in ConfigMap'
+    description: 'Application version'
     required: true
   server_port:
     description: 'Port the application listens on'
     required: false
-    default: '8080'
-  # Database (discovered from Terraform state)
+    default: '8083'
+  # Database
   rds_address:
-    description: 'RDS endpoint address'
+    description: 'RDS endpoint address (db_ms3)'
     required: true
   rds_port:
     description: 'RDS port'
     required: true
   rds_dbname:
-    description: 'RDS database name'
+    description: 'RDS database name (db_ms3)'
     required: true
   rds_user:
     description: 'RDS username'
     required: true
+  # AWS
+  aws_region:
+    description: 'AWS region for SQS/SNS'
+    required: false
+    default: 'us-east-1'
+  # SQS/SNS — Saga Participant
+  sqs_inventory_op_requested_url:
+    description: 'SQS queue URL — order-inventory-op-requested (MS2 → MS3, consumed by ms-workshop)'
+    required: false
+    default: ''
+  sqs_inventory_op_succeeded_url:
+    description: 'SQS queue URL — order-inventory-op-succeeded (MS3 publishes → MS2)'
+    required: false
+    default: ''
+  sqs_inventory_op_failed_url:
+    description: 'SQS queue URL — order-inventory-op-failed (MS3 publishes → MS2)'
+    required: false
+    default: ''
+  sns_inventory_low_alert_arn:
+    description: 'SNS topic ARN — inventory-low-alert (side effect, non-blocking)'
+    required: false
+    default: ''
   # Application secrets
   db_password:
     description: 'Database password'
     required: true
   jwt_secret_key:
-    description: 'JWT signing secret'
-    required: false
-    default: 'default-jwt-secret-key-change-me-32chars'
-  # SMTP (optional)
-  smtp_host:
-    description: 'SMTP host'
-    required: false
-    default: 'smtp.gmail.com'
-  smtp_port:
-    description: 'SMTP port'
-    required: false
-    default: '587'
-  smtp_username:
-    description: 'SMTP username'
-    required: false
-    default: ''
-  smtp_from:
-    description: 'SMTP from address'
-    required: false
-    default: ''
-  smtp_password:
-    description: 'SMTP password'
-    required: false
-    default: ''
+    description: 'JWT signing secret (shared across all MSs)'
+    required: true
   # Registry pull secret
   ghcr_pat:
     description: 'GitHub Container Registry personal access token'
     required: true
   github_actor:
-    description: 'GitHub actor (github.actor) — used as docker registry username'
+    description: 'GitHub actor'
     required: true
   # Datadog
   dd_api_key:
@@ -78,7 +77,7 @@ inputs:
     description: 'Datadog site (e.g. datadoghq.com)'
     required: true
   datadog_chart_version:
-    description: 'Datadog Helm chart version to install (e.g. 3.75.0). Pin this to avoid unintended upgrades.'
+    description: 'Datadog Helm chart version'
     required: false
     default: '3.75.0'
 
@@ -108,10 +107,11 @@ runs:
           SERVER_PORT: "${{ inputs.server_port }}"
           APP_ENV: "production"
           APP_VERSION: "${{ inputs.version }}"
-          SMTP_HOST: "${{ inputs.smtp_host }}"
-          SMTP_PORT: "${{ inputs.smtp_port }}"
-          SMTP_USERNAME: "${{ inputs.smtp_username }}"
-          SMTP_FROM: "${{ inputs.smtp_from }}"
+          AWS_REGION: "${{ inputs.aws_region }}"
+          SQS_INVENTORY_OP_REQUESTED_URL: "${{ inputs.sqs_inventory_op_requested_url }}"
+          SQS_INVENTORY_OP_SUCCEEDED_URL: "${{ inputs.sqs_inventory_op_succeeded_url }}"
+          SQS_INVENTORY_OP_FAILED_URL: "${{ inputs.sqs_inventory_op_failed_url }}"
+          SNS_INVENTORY_LOW_ALERT_ARN: "${{ inputs.sns_inventory_low_alert_arn }}"
         EOF
         echo "::notice::ConfigMap $APP_NAME-config created"
 
@@ -120,7 +120,6 @@ runs:
       env:
         APP_NAME: ${{ inputs.app_name }}
       run: |
-        # Image pull secret for GitHub Container Registry
         kubectl create secret docker-registry ghcr-secret \
           --docker-server=ghcr.io \
           --docker-username=${{ inputs.github_actor }} \
@@ -129,15 +128,12 @@ runs:
           -n ${{ inputs.namespace }} \
           --dry-run=client -o yaml | kubectl apply -f -
 
-        # Application secrets
         kubectl create secret generic "$APP_NAME-secret" \
           --from-literal=DB_PASSWORD=${{ inputs.db_password }} \
           --from-literal=JWT_SECRET_KEY=${{ inputs.jwt_secret_key }} \
-          --from-literal=SMTP_PASSWORD=${{ inputs.smtp_password }} \
           -n ${{ inputs.namespace }} \
           --dry-run=client -o yaml | kubectl apply -f -
 
-        # Datadog Agent secret (referenced by Helm chart)
         kubectl create secret generic datadog-secret \
           --from-literal=api-key=${{ inputs.dd_api_key }} \
           --from-literal=app-key=${{ inputs.dd_app_key }} \
@@ -160,16 +156,13 @@ runs:
         TARGET="datadog-${CHART_VERSION}"
 
         if [ "$INSTALLED" == "$TARGET" ]; then
-          echo "::notice::Datadog $CHART_VERSION already installed — skipping helm upgrade"
+          echo "::notice::Datadog $CHART_VERSION already installed — skipping"
         else
-          echo "::notice::Installing/upgrading Datadog: $INSTALLED → $TARGET"
-          # apiKeyExistingSecret and appKeyExistingSecret are configured in values.yaml
           helm upgrade --install datadog datadog/datadog \
             --namespace "$NAMESPACE" \
             --version "$CHART_VERSION" \
             -f k8s/datadog/values.yaml \
             --set datadog.site="$DD_SITE" \
-            --wait \
-            --timeout 10m
+            --wait --timeout 10m
           echo "::notice::Datadog Agent deployed"
         fi

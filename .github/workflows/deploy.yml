@@ -28,7 +28,7 @@ env:
   # Repository Variables — configure in Settings → Secrets and Variables → Variables
   # Required: APP_NAME, K8S_NAMESPACE, AWS_REGION, INFRA_TFSTATE_S3_PATH, DB_TFSTATE_S3_PATH
   # Optional: GO_VERSION (default: 1.25), GO_MAIN_PATH (default: cmd/api/main.go),
-  #           SERVER_PORT (default: 8080), HEALTH_ENDPOINT (default: /health)
+  #           SERVER_PORT (default: 8083), HEALTH_ENDPOINT (default: /health)
   K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
   AWS_REGION: ${{ vars.AWS_REGION }}
 
@@ -104,6 +104,7 @@ jobs:
           [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]     && MISSING+=("AWS_ACCESS_KEY_ID")
           [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ] && MISSING+=("AWS_SECRET_ACCESS_KEY")
           [ -z "${{ secrets.DB_PASSWORD }}" ]            && MISSING+=("DB_PASSWORD")
+          [ -z "${{ secrets.JWT_SECRET_KEY }}" ]         && MISSING+=("JWT_SECRET_KEY")
           [ -z "${{ secrets.GHCR_PAT }}" ]              && MISSING+=("GHCR_PAT")
           [ -z "${{ secrets.DD_API_KEY }}" ]             && MISSING+=("DD_API_KEY")
           [ -z "${{ secrets.DD_APP_KEY }}" ]             && MISSING+=("DD_APP_KEY")
@@ -122,6 +123,7 @@ jobs:
           aws_region: ${{ env.AWS_REGION }}
           infra_tfstate_s3_path: ${{ vars.INFRA_TFSTATE_S3_PATH }}
           db_tfstate_s3_path: ${{ vars.DB_TFSTATE_S3_PATH }}
+          db_ms_key: ms3
 
       - name: Provision Kubernetes Resources
         uses: ./.github/actions/deploy/k8s-provision
@@ -129,18 +131,18 @@ jobs:
           app_name: ${{ vars.APP_NAME }}
           namespace: ${{ env.K8S_NAMESPACE }}
           version: ${{ needs.build-test.outputs.version }}
-          server_port: ${{ vars.SERVER_PORT || '8080' }}
+          server_port: ${{ vars.SERVER_PORT || '8083' }}
           rds_address: ${{ steps.infra.outputs.rds_address }}
           rds_port: ${{ steps.infra.outputs.rds_port }}
           rds_dbname: ${{ steps.infra.outputs.rds_dbname }}
           rds_user: ${{ steps.infra.outputs.rds_user }}
+          aws_region: ${{ env.AWS_REGION }}
+          sqs_inventory_op_requested_url: ${{ vars.SQS_INVENTORY_OP_REQUESTED_URL }}
+          sqs_inventory_op_succeeded_url: ${{ vars.SQS_INVENTORY_OP_SUCCEEDED_URL }}
+          sqs_inventory_op_failed_url: ${{ vars.SQS_INVENTORY_OP_FAILED_URL }}
+          sns_inventory_low_alert_arn: ${{ vars.SNS_INVENTORY_LOW_ALERT_ARN }}
           db_password: ${{ secrets.DB_PASSWORD }}
           jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
-          smtp_host: ${{ secrets.SMTP_HOST }}
-          smtp_port: ${{ secrets.SMTP_PORT }}
-          smtp_username: ${{ secrets.SMTP_USERNAME }}
-          smtp_from: ${{ secrets.SMTP_FROM }}
-          smtp_password: ${{ secrets.SMTP_PASSWORD }}
           ghcr_pat: ${{ secrets.GHCR_PAT }}
           github_actor: ${{ github.actor }}
           dd_api_key: ${{ secrets.DD_API_KEY }}
@@ -156,9 +158,11 @@ jobs:
           registry: ${{ env.REGISTRY }}
           image_name: ${{ env.IMAGE_NAME }}
           nlb_dns: ${{ steps.infra.outputs.nlb_dns }}
-          server_port: ${{ vars.SERVER_PORT || '8080' }}
+          server_port: ${{ vars.SERVER_PORT || '8083' }}
           health_endpoint: ${{ vars.HEALTH_ENDPOINT || '/health' }}
 
+      # Tag criada apenas após health check confirmado — garante que a tag
+      # representa exatamente o que está rodando em produção.
       - name: Finalize Release Tag
         if: github.event_name != 'workflow_dispatch'
         uses: ./.github/actions/release/finalize-tag
@@ -184,11 +188,15 @@ jobs:
             echo ""
             echo "**Endpoints:**"
             echo "- Health: http://${{ steps.infra.outputs.nlb_dns }}/health"
+            echo "- Swagger: http://${{ steps.infra.outputs.nlb_dns }}/swagger/index.html"
             echo "- API: http://${{ steps.infra.outputs.nlb_dns }}/"
           } >> $GITHUB_STEP_SUMMARY
 
   # ===========================================
   # STAGE 4: GitHub Release
+  # Runs after deploy-k8s so the Release is published only after the tag is
+  # confirmed created in production (finalize-release-tag). This guarantees
+  # the tag already exists when softprops/action-gh-release attaches to it.
   # ===========================================
   github-release:
     name: GitHub Release
