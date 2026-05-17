@@ -54,7 +54,12 @@ runs:
       shell: bash
       run: |
         go mod download
-        go test ./... -v -coverprofile=coverage.out -covermode=atomic 2>&1 | tee /tmp/test-output.txt
+        # Exclude infrastructure/wiring packages that have no testable logic:
+        # bootstrap (cmd/api), DI module facades, route registrations,
+        # pure-DTO packages, and adapters that require live AWS/SMTP infrastructure.
+        PKGS=$(go list ./... | grep -vE \
+          '/cmd/api$|/internal/modules/(inventory|service_catalog)$|/internal/modules/.*/infra/http$|/internal/modules/.*/infra/http/dto$|/internal/shared/dto$|/internal/shared/infra/(awsconfig|email|observability|sqs)$|/internal/shared/infra/http/routes$')
+        go test ${PKGS} -v -coverprofile=coverage.out -covermode=atomic 2>&1 | tee /tmp/test-output.txt
         echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_ENV
 
     - name: Coverage Summary
