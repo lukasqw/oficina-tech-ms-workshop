@@ -10,8 +10,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"github.com/lukasqw/oficina-tech-ms3-workshop/internal/modules/inventory/application/usecases"
 	"github.com/lukasqw/oficina-tech-ms3-workshop/internal/modules/inventory/domain/saga_operation"
+	"github.com/lukasqw/oficina-tech-ms3-workshop/internal/shared/infra/observability"
 )
 
 type SQSReceiveDeleteClient interface {
@@ -65,9 +69,10 @@ func (c *OrderInventoryOperationRequestedConsumer) Start(ctx context.Context) er
 		}
 
 		output, err := c.client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
-			QueueUrl:            aws.String(c.queueURL),
-			WaitTimeSeconds:     20,
-			MaxNumberOfMessages: 10,
+			QueueUrl:              aws.String(c.queueURL),
+			WaitTimeSeconds:       20,
+			MaxNumberOfMessages:   10,
+			MessageAttributeNames: []string{"All"},
 		})
 		if err != nil {
 			return fmt.Errorf("receive order inventory operation messages: %w", err)
@@ -82,17 +87,31 @@ func (c *OrderInventoryOperationRequestedConsumer) Start(ctx context.Context) er
 }
 
 func (c *OrderInventoryOperationRequestedConsumer) HandleMessage(ctx context.Context, message types.Message) error {
+	opts := []trace.SpanStartOption{trace.WithSpanKind(trace.SpanKindConsumer)}
+	if link, ok := observability.ExtractSpanLinkFromSQS(message); ok {
+		opts = append(opts, trace.WithLinks(link))
+	}
+	ctx, span := otel.Tracer("ms-workshop/messaging").Start(ctx,
+		"consume OrderInventoryOperationRequested", opts...)
+	defer span.End()
+
 	input, err := decodeOrderInventoryOperationRequested(message)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
 	result, err := c.useCase.Execute(ctx, input)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
 	if err := c.publisher.Publish(ctx, result); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
