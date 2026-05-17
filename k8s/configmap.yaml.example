@@ -15,3 +15,5 @@ data:
   SQS_INVENTORY_OP_SUCCEEDED_URL: "https://sqs.us-east-1.amazonaws.com/ACCOUNT_ID/order-inventory-op-succeeded"
   SQS_INVENTORY_OP_FAILED_URL: "https://sqs.us-east-1.amazonaws.com/ACCOUNT_ID/order-inventory-op-failed"
   SNS_INVENTORY_LOW_ALERT_ARN: "arn:aws:sns:us-east-1:ACCOUNT_ID:inventory-low-alert"
+  APP_ENV: "production"
+  APP_VERSION: "1.0.0"
