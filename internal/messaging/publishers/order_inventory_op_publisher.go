@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/lukasqw/oficina-tech-ms3-workshop/internal/modules/inventory/application/usecases"
+	"github.com/lukasqw/oficina-tech-ms3-workshop/internal/shared/infra/observability"
 )
 
 type SQSSendMessageClient interface {
@@ -39,8 +40,9 @@ func (p *OrderInventoryOperationPublisher) Publish(ctx context.Context, result *
 
 	body := string(result.Payload)
 	_, err := p.client.SendMessage(ctx, &sqs.SendMessageInput{
-		QueueUrl:    aws.String(queueURL),
-		MessageBody: aws.String(body),
+		QueueUrl:          aws.String(queueURL),
+		MessageBody:       aws.String(body),
+		MessageAttributes: observability.InjectTraceToSQS(ctx),
 	})
 	if err != nil {
 		return fmt.Errorf("publish %s: %w", result.EventName, err)
