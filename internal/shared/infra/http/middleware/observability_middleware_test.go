@@ -72,8 +72,12 @@ func TestResponseRecorder_Write(t *testing.T) {
 func TestResponseRecorder_MultipleWrites(t *testing.T) {
 	rr := newResponseRecorder(httptest.NewRecorder())
 
-	rr.Write([]byte("foo"))
-	rr.Write([]byte("bar"))
+	if _, err := rr.Write([]byte("foo")); err != nil {
+		t.Fatalf("unexpected write error: %v", err)
+	}
+	if _, err := rr.Write([]byte("bar")); err != nil {
+		t.Fatalf("unexpected write error: %v", err)
+	}
 
 	if rr.written != 6 {
 		t.Errorf("expected 6 bytes written, got %d", rr.written)
@@ -123,7 +127,9 @@ func buildHandler(t *testing.T, statusCode int) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(statusCode)
-		io.WriteString(w, "body")
+		if _, err := io.WriteString(w, "body"); err != nil {
+				http.Error(w, "write error", http.StatusInternalServerError)
+			}
 	})
 	return NewObservabilityMiddleware(WrapMux(mux))
 }

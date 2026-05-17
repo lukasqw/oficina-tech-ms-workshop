@@ -25,7 +25,9 @@ func setupJWTService(t *testing.T, secret string) *JWTServiceImpl {
 }
 
 func TestNewJWTService_PanicsWithoutSecret(t *testing.T) {
-	os.Unsetenv("JWT_SECRET_KEY")
+	if err := os.Unsetenv("JWT_SECRET_KEY"); err != nil {
+		t.Fatalf("failed to unset JWT_SECRET_KEY: %v", err)
+	}
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("expected panic when JWT_SECRET_KEY is not set")
