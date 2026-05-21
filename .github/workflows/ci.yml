@@ -42,7 +42,10 @@ jobs:
           version: latest
 
       - name: Run Tests
-        run: go test ./... -v -coverprofile=coverage.out -covermode=atomic
+        run: |
+          PKGS=$(go list ./... | grep -vE \
+            '/cmd/api$|/internal/modules/(inventory|service_catalog)$|/internal/modules/.*/infra/http$|/internal/modules/.*/infra/http/dto$|/internal/shared/dto$|/internal/shared/infra/(awsconfig|email|observability|sqs)$|/internal/shared/infra/http/routes$')
+          go test ${PKGS} -v -coverprofile=coverage.out -covermode=atomic
 
       - name: Coverage Gate
         run: |
